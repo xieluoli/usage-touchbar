@@ -12,7 +12,49 @@ Claude Code statusline hook     claude-usage/state.json    MTMR shellScript
 → 写入 iCloud                                        → Touch Bar 彩色进度条
 ```
 
-数据通过 iCloud Drive 自动同步，不需要两台机器在同一局域网。
+数据通过 iCloud Drive 自动同步，不需要两台机器在同一局域网。Claude Code 每轮对话结束后触发导出，MTMR 每 3 秒轮询一次读取最新数据。
+
+## Touch Bar 显示说明
+
+```
+5H ███▊·····  38% ↺3h25m  ┃  7D ██▌······  22% ↺5d12h  ●
+    ├── progress ──┤ ├──┤      ├── progress ──┤ ├──┤     │
+    80级渐变进度条   百分比     80级渐变进度条   倒计时    连线状态
+```
+
+| 元素 | 含义 |
+|------|------|
+| `5H` / `7D` | 5 小时 / 7 天滑动窗口（亮青色粗体） |
+| `██▊·····` | 80 级丝滑进度条，用 1/8 Unicode block（█▉▊▋▌▍▎▏）渲染，10 格 × 8 子级 |
+| `·` 网格点 | 空白区域底纹，保持科幻仪表盘质感 |
+| `38%` | 精确百分比（整数，右对齐 3 位） |
+| `↺3h25m` | 距离额度重置的倒计时，归零时显示 `✧` |
+| `●` / `○` | 连线指示灯（含义见下表） |
+| `┃` | 间隔线，视觉分隔两个窗口 |
+
+### 进度条渐变色
+
+```
+0% ░░░░░░░░░░ 100%
+青 → 亮白 → 黄 → 红 → 亮紫
+```
+
+| 颜色 | 进度范围 | 含义 |
+|------|---------|------|
+| 🩵 青 | 0-30% | 用量极低 |
+| 🤍 亮白 | 30-50% | 正常 |
+| 💛 黄 | 50-70% | 过半 |
+| ❤️ 亮红 | 70-90% | 告警 |
+| 💜 亮紫 | 90-100% | 即将耗尽 |
+
+### 连线指示灯
+
+| 显示 | 最后更新 | 含义 |
+|------|---------|------|
+| 🟢 `●` 亮绿 | < 1 分钟 | Mac Mini 在线，数据新鲜 |
+| 🟡 `●` 亮黄 | 1–5 分钟 | 稍旧，可能没在对话 |
+| ⚫ `●` 灰色 | > 5 分钟 | 数据不新鲜，Mac Mini 可能空闲或离线 |
+| ⚪ `○` 灰圈 | 未知 | 无时间戳 |
 
 ## 前置条件
 
@@ -46,6 +88,8 @@ chmod +x ~/.claude/statusline-export.py
 ```
 
 如果已有其他配置，只需合并 `statusLine` 进去。
+
+纯 Python 实现，无外部依赖。脚本只做两件事：从 stdin 提取 `rate_limits` 写入 iCloud Drive；向 stdout 输出简短用量文字显示在 Claude Code 终端状态栏。
 
 #### 3. 验证
 
@@ -92,38 +136,23 @@ cp macbook-pro/items.json "$HOME/Library/Application Support/MTMR/items.json"
 
 > ⚠️ 如果用户名不是 `luolixie`，需修改 `items.json` 中的 `filePath`。
 
-#### 4. 验证
+#### 4. 让 Touch Bar 常驻显示
+
+> 系统设置 → 键盘 → Touch Bar 显示 → 选「展开的控制条」
+
+否则需要按住 Fn 才能看到 MTMR 内容。
+
+#### 5. 验证
 
 ```bash
 bash ~/.claude/touchbar-fetch.sh
 ```
 
-应该看到带颜色的进度条。然后启动 MTMR，Touch Bar 即显示用量。
+应该看到带渐变色进度条的 HUD 风格输出。然后启动 MTMR，Touch Bar 即显示用量。
 
-## Touch Bar 显示说明
+#### 6. 更新组件
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│ Esc │ 5h ██████░░░░ 68% ↺3h25m    7d ████░░░░░░ 42% ↺4d12h  ● │
-└──────────────────────────────────────────────────────────────────┘
-```
-
-| 元素 | 含义 |
-|------|------|
-| `5h` | 5 小时滑动窗口用量 |
-| `7d` | 7 天滑动窗口用量 |
-| `██████░░░░` | 10 格进度条（每格 10%） |
-| `68%` | 精确百分比 |
-| `↺3h25m` | 距离额度重置的倒计时 |
-| `●` | 数据新鲜度（绿=<1分钟，黄=<5分钟，灰=>5分钟） |
-
-### 颜色含义
-
-| 颜色 | 用量 | 含义 |
-|------|------|------|
-| 🟢 绿色 | 0-49% | 充裕 |
-| 🟡 黄色 | 50-79% | 注意 |
-| 🔴 红色 | ≥80% | 告警 |
+脚本更新后覆盖 `~/.claude/touchbar-fetch.sh` 即可。**无需重启 MTMR** —— 它每 3 秒重新执行脚本，改动自动生效。
 
 ## 常见问题
 
@@ -137,6 +166,7 @@ bash ~/.claude/touchbar-fetch.sh
 1. 确认两台 Mac 登录了**同一个 Apple ID**，iCloud Drive 已开启
 2. iCloud 同步有 5-30 秒延迟，等待片刻再试
 3. 检查 `~/Library/Mobile Documents/com~apple~CloudDocs/claude-usage/` 目录是否存在
+4. 确认 MTMR 已授权辅助功能权限
 
 ### Touch Bar 显示乱码？
 
@@ -173,7 +203,7 @@ rm -rf "$HOME/Library/Mobile Documents/com~apple~CloudDocs/claude-usage"
 # 删除获取脚本
 rm ~/.claude/touchbar-fetch.sh
 
-# 删除 MTMR 配置（会恢复默认 Touch Bar）
+# 删除 MTMR 配置（恢复默认 Touch Bar）
 rm "$HOME/Library/Application Support/MTMR/items.json"
 
 # 可选：卸载 MTMR
@@ -189,11 +219,11 @@ usage-touchbar/
 ├── README.md
 ├── mac-mini/
 │   ├── statusline-export.py    # Python 导出脚本（无外部依赖）
-│   └── settings-patch.json     # settings.json 合并片段
+│   └── settings-patch.json     # settings.json 配置片段
 ├── macbook-pro/
-│   ├── touchbar-fetch.sh       # MTMR 调用的获取+格式化脚本
-│   └── items.json              # MTMR Touch Bar 布局配置
+│   ├── touchbar-fetch.sh       # MTMR 获取+渲染脚本（80级渐变进度条）
+│   └── items.json              # MTMR Touch Bar 布局
 └── test/
-    ├── mock-input.json         # 模拟的 statusline JSON
+    ├── mock-input.json         # 模拟 statusline JSON
     └── test-pipeline.sh        # 端到端测试脚本
 ```
