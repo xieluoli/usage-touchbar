@@ -1,0 +1,19 @@
+{
+  "rate_limits": {
+    "five_hour": {
+      "used_percentage": 68,
+      "resets_at": "2026-06-18T18:30:00Z"
+    },
+    "seven_day": {
+      "used_percentage": 42,
+      "resets_at": "2026-06-22T08:00:00Z"
+    },
+    "7d_sonnet": {
+      "used_percentage": 25,
+      "resets_at": "2026-06-24T12:00:00Z"
+    }
+  },
+  "model": {
+    "display_name": "DeepSeek-V4-pro[1m]"
+  }
+}

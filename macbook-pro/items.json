@@ -1,0 +1,19 @@
+[
+  {
+    "type": "escape",
+    "align": "left",
+    "width": 64
+  },
+  {
+    "type": "shellScriptTitledButton",
+    "name": "Claude用量",
+    "width": 900,
+    "refreshInterval": 3,
+    "source": {
+      "filePath": "/Users/luolixie/.claude/touchbar-fetch.sh"
+    },
+    "align": "left",
+    "bordered": false,
+    "backgroundColor": "#1a1a2e"
+  }
+]
