@@ -3,101 +3,16 @@
 # Touch Bar 用量显示脚本（MacBook Pro 端）
 # 部署位置: ~/.claude/touchbar-fetch.sh
 #
-# 由 MTMR 每 3 秒调用一次，从 iCloud Drive 读取 Mac Mini
-# 写入的用量数据，格式化为 HUD 风格进度条输出到 Touch Bar。
+# 数据获取 + 主题调度。渲染逻辑在 themes/ 目录下。
+# 切换主题：echo "主题名" > ~/.claude/touchbar-theme
 # ============================================================
 
 ICLOUD_DIR="$HOME/Library/Mobile Documents/com~apple~CloudDocs/claude-usage"
 STATE_FILE="${STATE_FILE:-$ICLOUD_DIR/state.json}"
+THEMES_DIR="${TOUCHBAR_THEMES_DIR:-$HOME/.claude/touchbar-themes}"
+THEME_CONF="${TOUCHBAR_THEME_CONF:-$HOME/.claude/touchbar-theme}"
 
-# ---- 辅助函数 ----
-
-# 1/8 Unicode block 字符: 0→8 = ▏▎▍▌▋▊▉█
-BLOCKS=("·" "▏" "▎" "▍" "▌" "▋" "▊" "▉" "█")
-
-# 80 级丝滑进度条（10 主格 × 8 子级 = 80 步 ≈ 1.25%/步）
-# 渐变色：青 → 亮白 → 黄 → 红（HUD 温度计风格）
-draw_bar() {
-  local pct=$1
-  if [ -z "$pct" ] || [ "$pct" = "null" ]; then
-    echo "\033[90m━━━━━━━━━━\033[0m"
-    return
-  fi
-
-  local pct_int=${pct%.*}
-  local steps=$(( pct_int * 80 / 100 ))
-  [ "$steps" -gt 80 ] && steps=80
-
-  local bar=""
-  for ((i=0; i<10; i++)); do
-    local block_pos=$(( i * 8 ))
-    local sub=$(( steps - block_pos ))
-
-    local char
-    if [ $sub -ge 8 ]; then char=8
-    elif [ $sub -le 0 ]; then char=0
-    else char=$sub
-    fi
-
-    # 渐变色：根据块位置决定颜色
-    if [ $i -le 2 ]; then
-      bar+="\033[36m${BLOCKS[$char]}"
-    elif [ $i -le 4 ]; then
-      bar+="\033[1;37m${BLOCKS[$char]}"
-    elif [ $i -le 6 ]; then
-      bar+="\033[33m${BLOCKS[$char]}"
-    elif [ $i -le 8 ]; then
-      bar+="\033[1;31m${BLOCKS[$char]}"
-    else
-      bar+="\033[1;35m${BLOCKS[$char]}"
-    fi
-  done
-  bar+="\033[0m"
-  echo "$bar"
-}
-
-# 紧凑倒计时
-countdown() {
-  local reset_at=$1
-  if [ -z "$reset_at" ] || [ "$reset_at" = "null" ]; then
-    echo ""
-    return
-  fi
-
-  local now reset_ts
-  now=$(date +%s)
-
-  if command -v gdate &>/dev/null; then
-    reset_ts=$(gdate -d "$reset_at" +%s 2>/dev/null) || reset_ts=""
-  else
-    reset_ts=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$reset_at" +%s 2>/dev/null) || reset_ts=""
-  fi
-
-  if [ -z "$reset_ts" ]; then
-    echo ""
-    return
-  fi
-
-  local remaining=$(( reset_ts - now ))
-  if [ "$remaining" -le 0 ]; then
-    echo "✧"
-    return
-  fi
-
-  local days=$(( remaining / 86400 ))
-  local hours=$(( (remaining % 86400) / 3600 ))
-  local mins=$(( (remaining % 3600) / 60 ))
-
-  if [ "$days" -gt 0 ]; then
-    printf "%dd%dh" "$days" "$hours"
-  elif [ "$hours" -gt 0 ]; then
-    printf "%dh%dm" "$hours" "$mins"
-  else
-    printf "%dm" "$mins"
-  fi
-}
-
-# ---- 主逻辑 ----
+# ===================== 数据获取 =====================
 
 if [ ! -f "$STATE_FILE" ]; then
   echo "\033[90m⏳ 等待 Mac Mini 数据...\033[0m"
@@ -118,6 +33,7 @@ DATA=$(jq -r '
 
 IFS='|' read -r FIVE_PCT FIVE_RESET SEVEN_PCT SEVEN_RESET SONNET_PCT SONNET_RESET UPDATED <<< "$DATA"
 
+# 无数据分支
 if [ "$FIVE_PCT" = "null" ] && [ "$SEVEN_PCT" = "null" ]; then
   now=$(date +%s)
   if [ "$UPDATED" != "null" ] && [ $(( now - UPDATED )) -gt 1800 ]; then
@@ -128,45 +44,22 @@ if [ "$FIVE_PCT" = "null" ] && [ "$SEVEN_PCT" = "null" ]; then
   exit 0
 fi
 
-# ---- 渲染 ----
+# ===================== 主题调度 =====================
 
-BAR_5H=$(draw_bar "$FIVE_PCT")
-CD_5H=$(countdown "$FIVE_RESET")
+THEME="hud"  # 默认主题
+[ -f "$THEME_CONF" ] && THEME=$(head -1 "$THEME_CONF" | tr -d '[:space:]')
 
-BAR_7D=$(draw_bar "$SEVEN_PCT")
-CD_7D=$(countdown "$SEVEN_RESET")
+THEME_FILE="$THEMES_DIR/${THEME}.sh"
 
-# 格式化为整数百分比（右对齐 3 位）
-fmt_pct() {
-  local v=$1
-  if [ -z "$v" ] || [ "$v" = "null" ]; then echo "  ?"; return; fi
-  printf "%3d" "${v%.*}"
-}
-
-# 连线指示灯
-now=$(date +%s)
-if [ "$UPDATED" != "null" ]; then
-  age=$(( now - UPDATED ))
-  if [ "$age" -lt 60 ]; then
-    DOT="\033[1;32m●\033[0m"
-  elif [ "$age" -lt 300 ]; then
-    DOT="\033[1;33m●\033[0m"
-  else
-    DOT="\033[90m●\033[0m"
-  fi
-else
-  DOT="\033[90m○\033[0m"
+if [ ! -f "$THEME_FILE" ]; then
+  echo "\033[90m⚠ 主题 '$THEME' 不存在\033[0m"
+  exit 0
 fi
 
-# HUD 风格渲染
-printf "\033[1;36m5H\033[0m %b \033[1m%s%%\033[0m" "$BAR_5H" "$(fmt_pct "$FIVE_PCT")"
-[ -n "$CD_5H" ] && printf " \033[90m↺%s\033[0m" "$CD_5H"
+# 导出变量供主题使用
+export FIVE_PCT FIVE_RESET SEVEN_PCT SEVEN_RESET SONNET_PCT SONNET_RESET UPDATED
 
-printf "  \033[90m┃\033[0m  "
+source "$THEME_FILE"
+render
 
-printf "\033[1;36m7D\033[0m %b \033[1m%s%%\033[0m" "$BAR_7D" "$(fmt_pct "$SEVEN_PCT")"
-[ -n "$CD_7D" ] && printf " \033[90m↺%s\033[0m" "$CD_7D"
-
-printf "  %b" "$DOT"
-
-echo ""
+# render 函数由主题文件定义，输出一行 ANSI 格式文本
