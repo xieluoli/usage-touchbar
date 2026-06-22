@@ -1,35 +1,35 @@
 # ============================================================
 # 主题: hud（默认）— 渐变温度计进度条
-# 80级丝滑，青→亮白→黄→红→亮紫
+# 全宽 █/░ block，16 色 ANSI，Touch Bar 原生友好
 # ============================================================
-
-BLOCKS=("·" "▏" "▎" "▍" "▌" "▋" "▊" "▉" "█")
 
 draw_bar() {
   local pct=$1
   if [ -z "$pct" ] || [ "$pct" = "null" ]; then
-    echo "\033[90m━━━━━━━━━━\033[0m"
+    echo "\033[90m░░░░░░░░░░\033[0m"
     return
   fi
-  local steps=$(( ${pct%.*} * 80 / 100 ))
-  [ "$steps" -gt 80 ] && steps=80
+  local pct_int=${pct%.*}
+  [ "$pct_int" -gt 100 ] && pct_int=100
+  local filled=$(( pct_int / 10 ))
+  local partial=$(( pct_int % 10 ))
+  [ "$partial" -gt 0 ] && filled=$(( filled + 1 ))
+  [ "$filled" -gt 10 ] && filled=10
 
   local bar=""
   for ((i=0; i<10; i++)); do
-    local sub=$(( steps - i * 8 ))
-    local char
-    if [ $sub -ge 8 ]; then char=8
-    elif [ $sub -le 0 ]; then char=0
-    else char=$sub
-    fi
-    # 空位=暗灰底纹；填充块=渐变色
-    if [ $char -eq 0 ]; then
-      bar+="\033[90m·"
-    elif [ $i -le 2 ]; then bar+="\033[36m${BLOCKS[$char]}"
-    elif [ $i -le 4 ]; then bar+="\033[1;37m${BLOCKS[$char]}"
-    elif [ $i -le 6 ]; then bar+="\033[33m${BLOCKS[$char]}"
-    elif [ $i -le 8 ]; then bar+="\033[1;31m${BLOCKS[$char]}"
-    else                    bar+="\033[1;35m${BLOCKS[$char]}"
+    if [ $i -ge $filled ]; then
+      bar+="\033[90m░"
+    elif [ $i -le 2 ]; then
+      bar+="\033[36m█"
+    elif [ $i -le 4 ]; then
+      bar+="\033[1;37m█"
+    elif [ $i -le 6 ]; then
+      bar+="\033[33m█"
+    elif [ $i -le 8 ]; then
+      bar+="\033[1;31m█"
+    else
+      bar+="\033[1;35m█"
     fi
   done
   bar+="\033[0m"

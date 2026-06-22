@@ -1,33 +1,25 @@
 # ============================================================
 # 主题: neon — 赛博朋克霓虹灯
-# 品红/青色双色，方括号框体，脉冲指示
+# 方括号框体，脉冲指示，16色 ANSI
 # ============================================================
-
-FILL=("·" "▏" "▎" "▍" "▌" "▋" "▊" "▉" "█")
 
 draw_bar() {
   local pct=$1 color=$2
   if [ -z "$pct" ] || [ "$pct" = "null" ]; then
-    echo "\033[90m[··········]\033[0m"
+    echo "\033[90m[░░░░░░░░░░]\033[0m"
     return
   fi
-  local steps=$(( ${pct%.*} * 80 / 100 ))
-  [ "$steps" -gt 80 ] && steps=80
+  local pct_int=${pct%.*}
+  [ "$pct_int" -gt 100 ] && pct_int=100
+  local filled=$(( pct_int / 10 ))
+  local partial=$(( pct_int % 10 ))
+  [ "$partial" -gt 0 ] && filled=$(( filled + 1 ))
+  [ "$filled" -gt 10 ] && filled=10
 
-  local bar="$color["
+  local bar="${color}["
   for ((i=0; i<10; i++)); do
-    local sub=$(( steps - i * 8 ))
-    local char
-    if [ $sub -ge 8 ]; then char=8
-    elif [ $sub -le 0 ]; then char=0
-    else char=$sub
-    fi
-    # 空位=暗灰底纹；填充块=霓虹色
-    if [ $char -eq 0 ]; then
-      bar+="\033[90m·"
-    else
-      bar+="${color}${FILL[$char]}"
-    fi
+    if [ $i -lt $filled ]; then bar+="${color}█"
+    else bar+="\033[90m░"; fi
   done
   bar+="]\033[0m"
   echo "$bar"
@@ -68,15 +60,13 @@ pulse() {
 
 render() {
   local bar5 cd5 bar7 cd7
-
   bar5=$(draw_bar "$FIVE_PCT" "\033[1;35m")
   cd5=$(countdown "$FIVE_RESET")
   bar7=$(draw_bar "$SEVEN_PCT" "\033[1;36m")
   cd7=$(countdown "$SEVEN_RESET")
 
   local online="\033[90m⟡\033[0m"
-  [ "$UPDATED" != "null" ] && [ $(( $(date +%s) - UPDATED )) -lt 30 ] && \
-    online=$(pulse)
+  [ "$UPDATED" != "null" ] && [ $(( $(date +%s) - UPDATED )) -lt 30 ] && online=$(pulse)
 
   printf "\033[1;35m◈ 5H\033[0m %b \033[1m%s%%\033[0m" "$bar5" "$(fmt_pct "$FIVE_PCT")"
   [ -n "$cd5" ] && printf " %b" "$cd5"
