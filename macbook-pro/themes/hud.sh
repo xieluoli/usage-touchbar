@@ -36,8 +36,14 @@ draw_bar() {
 countdown() {
   local ts=$1
   [ -z "$ts" ] || [ "$ts" = "null" ] && { echo ""; return; }
-  local rst
-  rst=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ts" +%s 2>/dev/null) || rst=""
+  local rst base
+  # 兼容两种格式：Unix 时间戳整数 / ISO 8601 字符串（Z 或 +00:00）
+  if [[ "$ts" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+    rst=${ts%.*}
+  else
+    base="${ts%Z}"; base="${base%+*}"  # 剥离时区后缀
+    rst=$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$base" +%s 2>/dev/null) || rst=""
+  fi
   [ -z "$rst" ] && { echo ""; return; }
   local r=$(( rst - $(date +%s) ))
   [ "$r" -le 0 ] && { echo "✧"; return; }

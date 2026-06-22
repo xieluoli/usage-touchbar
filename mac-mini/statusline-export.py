@@ -42,6 +42,13 @@ def main():
                 pct = float(pct)
             except (TypeError, ValueError):
                 pct = None
+        # 将 resets_at 统一为 ISO 8601 字符串
+        if isinstance(reset, (int, float)):
+            try:
+                from datetime import datetime, timezone
+                reset = datetime.fromtimestamp(reset, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            except (ValueError, OSError):
+                pass
         return pct, reset
 
     five_pct, five_reset = extract(rate_limits.get("five_hour"))

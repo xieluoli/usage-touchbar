@@ -35,8 +35,13 @@ pct_color() {
 countdown() {
   local ts=$1
   [ -z "$ts" ] || [ "$ts" = "null" ] && { echo ""; return; }
-  local rst
-  rst=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ts" +%s 2>/dev/null) || rst=""
+  local rst base
+  if [[ "$ts" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+    rst=${ts%.*}
+  else
+    base="${ts%Z}"; base="${base%+*}"
+    rst=$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$base" +%s 2>/dev/null) || rst=""
+  fi
   [ -z "$rst" ] && { echo ""; return; }
   local r=$(( rst - $(date +%s) ))
   [ "$r" -le 0 ] && { echo ""; return; }
