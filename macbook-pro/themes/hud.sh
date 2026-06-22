@@ -22,7 +22,10 @@ draw_bar() {
     elif [ $sub -le 0 ]; then char=0
     else char=$sub
     fi
-    if   [ $i -le 2 ]; then bar+="\033[36m${BLOCKS[$char]}"
+    # 空位=暗灰底纹；填充块=渐变色
+    if [ $char -eq 0 ]; then
+      bar+="\033[90m·"
+    elif [ $i -le 2 ]; then bar+="\033[36m${BLOCKS[$char]}"
     elif [ $i -le 4 ]; then bar+="\033[1;37m${BLOCKS[$char]}"
     elif [ $i -le 6 ]; then bar+="\033[33m${BLOCKS[$char]}"
     elif [ $i -le 8 ]; then bar+="\033[1;31m${BLOCKS[$char]}"
@@ -37,11 +40,10 @@ countdown() {
   local ts=$1
   [ -z "$ts" ] || [ "$ts" = "null" ] && { echo ""; return; }
   local rst base
-  # 兼容两种格式：Unix 时间戳整数 / ISO 8601 字符串（Z 或 +00:00）
   if [[ "$ts" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
     rst=${ts%.*}
   else
-    base="${ts%Z}"; base="${base%+*}"  # 剥离时区后缀
+    base="${ts%Z}"; base="${base%+*}"
     rst=$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$base" +%s 2>/dev/null) || rst=""
   fi
   [ -z "$rst" ] && { echo ""; return; }

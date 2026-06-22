@@ -1,6 +1,6 @@
 # ============================================================
 # 主题: neon — 赛博朋克霓虹灯
-# 品红/青色双色，方括号框体，闪烁脉冲指示
+# 品红/青色双色，方括号框体，脉冲指示
 # ============================================================
 
 FILL=("·" "▏" "▎" "▍" "▌" "▋" "▊" "▉" "█")
@@ -22,7 +22,12 @@ draw_bar() {
     elif [ $sub -le 0 ]; then char=0
     else char=$sub
     fi
-    bar+="${FILL[$char]}"
+    # 空位=暗灰底纹；填充块=霓虹色
+    if [ $char -eq 0 ]; then
+      bar+="\033[90m·"
+    else
+      bar+="${color}${FILL[$char]}"
+    fi
   done
   bar+="]\033[0m"
   echo "$bar"
@@ -53,28 +58,25 @@ fmt_pct() {
   printf "%3d" "${v%.*}"
 }
 
-# 脉冲点：用奇数秒交替显隐模拟呼吸
 pulse() {
-  local active=$1 color=$2
   if [ $(( $(date +%s) % 2 )) -eq 0 ]; then
-    echo "${color}◉\033[0m"
+    echo "\033[1;35m◉\033[0m"
   else
-    echo "${color}◎\033[0m"
+    echo "\033[1;35m◎\033[0m"
   fi
 }
 
 render() {
   local bar5 cd5 bar7 cd7
 
-  bar5=$(draw_bar "$FIVE_PCT" "\033[1;35m")    # 品红
+  bar5=$(draw_bar "$FIVE_PCT" "\033[1;35m")
   cd5=$(countdown "$FIVE_RESET")
-  bar7=$(draw_bar "$SEVEN_PCT" "\033[1;36m")   # 青色
+  bar7=$(draw_bar "$SEVEN_PCT" "\033[1;36m")
   cd7=$(countdown "$SEVEN_RESET")
 
-  # 连线：30秒内=在线
   local online="\033[90m⟡\033[0m"
   [ "$UPDATED" != "null" ] && [ $(( $(date +%s) - UPDATED )) -lt 30 ] && \
-    online=$(pulse "5H" "\033[1;35m")
+    online=$(pulse)
 
   printf "\033[1;35m◈ 5H\033[0m %b \033[1m%s%%\033[0m" "$bar5" "$(fmt_pct "$FIVE_PCT")"
   [ -n "$cd5" ] && printf " %b" "$cd5"
