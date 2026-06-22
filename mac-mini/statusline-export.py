@@ -55,7 +55,21 @@ def main():
     seven_pct, seven_reset = extract(rate_limits.get("seven_day"))
     sonnet_pct, sonnet_reset = extract(rate_limits.get("7d_sonnet"))
 
-    # 写入状态文件
+    # 新会话开始时会触发一次空 rate_limits —— 这时不要覆盖旧数据
+    if five_pct is None and seven_pct is None and sonnet_pct is None:
+        # 如果已有旧文件，只更新时间戳，保持旧用量数据
+        if STATE_FILE.exists():
+            try:
+                old = json.loads(STATE_FILE.read_text())
+                old["last_updated"] = now
+                old["model"] = model_name
+                STATE_FILE.write_text(json.dumps(old, ensure_ascii=False, indent=2))
+            except (json.JSONDecodeError, OSError):
+                pass
+        print("📊 等待用量数据...")
+        sys.exit(0)
+
+    # 有有效数据，正常写入
     state = {
         "rate_limits": {
             "five_hour": {
@@ -78,11 +92,8 @@ def main():
     STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2))
 
     # stdout → Claude Code 终端状态栏
-    if five_pct is not None:
-        s = seven_pct if seven_pct is not None else "?"
-        print(f"📊 5h:{five_pct:.0f}% 7d:{s:.0f}%")
-    else:
-        print("📊 等待用量数据...")
+    s = seven_pct if seven_pct is not None else "?"
+    print(f"📊 5h:{five_pct:.0f}% 7d:{s:.0f}%")
 
 
 if __name__ == "__main__":

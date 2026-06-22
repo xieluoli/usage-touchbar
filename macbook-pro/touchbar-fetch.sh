@@ -61,14 +61,9 @@ DATA=$(echo "$RAW" | jq -r '
 
 IFS='|' read -r FIVE_PCT FIVE_RESET SEVEN_PCT SEVEN_RESET SONNET_PCT SONNET_RESET UPDATED <<< "$DATA"
 
-# 无数据分支
+# 无数据分支（文件首次创建前）
 if [ "$FIVE_PCT" = "null" ] && [ "$SEVEN_PCT" = "null" ]; then
-  now=$(date +%s)
-  if [ "$UPDATED" != "null" ] && [ $(( now - UPDATED )) -gt 1800 ]; then
-    echo "\033[90m⚠  Mac Mini 离线 ($(( (now - UPDATED) / 60 ))分钟前)\033[0m"
-  else
-    echo "\033[90m⏳ 暂无用量数据\033[0m"
-  fi
+  echo "\033[90m⏳ 等待首次 API 数据...\033[0m"
   exit 0
 fi
 
