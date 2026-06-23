@@ -83,8 +83,8 @@ def main():
     STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2))
 
     # stdout → Claude Code 终端状态栏
-    s = seven_pct if seven_pct is not None else "?"
-    print(f"📊 5h:{five_pct:.0f}% 7d:{s:.0f}%")
+    s = f"{seven_pct:.0f}" if seven_pct is not None else "?"
+    print(f"📊 5h:{five_pct:.0f}% 7d:{s}%")
 
 
 if __name__ == "__main__":
