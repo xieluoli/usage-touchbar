@@ -156,6 +156,54 @@ bash ~/.claude/touchbar-fetch.sh
 
 ## 常见问题
 
+### 终端不显示用量 / Touch Bar 数据停止更新？
+
+**最可能的原因：Mac Mini 上的 `statusLine` 配置被清空。** Claude Code 在遭遇异常（如多 agent API 限流、进程重启）时可能重写 `~/.claude/settings.json`，覆盖我们添加的 `statusLine` 字段。
+
+**快速诊断（在 MacBook Pro 上远程检查）：**
+
+```bash
+# 检查 statusLine 配置是否还在
+ssh xieluoli@100.78.198.51 'python3 -c "
+import json
+s = json.load(open(\"$HOME/.claude/settings.json\"))
+print(\"statusLine 已配置:\", \"statusLine\" in s)
+"'
+
+# 检查 state.json 最后更新时间
+ssh xieluoli@100.78.198.51 'python3 -c "
+import json, time
+d = json.load(open(\"$HOME/Library/Mobile Documents/com~apple~CloudDocs/claude-usage/state.json\"))
+age = int(time.time() - d[\"last_updated\"])
+print(\"距今: {}h{}m\".format(age//3600, age%3600//60))
+"'
+
+# 手动测试导出脚本是否正常
+echo '{"rate_limits":{"five_hour":{"used_percentage":99}},"model":{"display_name":"test"}}' \
+  | ssh xieluoli@100.78.198.51 'python3 ~/.claude/statusline-export.py'
+```
+
+**修复（如果 statusLine 丢失）：**
+
+```bash
+ssh xieluoli@100.78.198.51 'python3 -c "
+import json
+with open(\"$HOME/.claude/settings.json\") as f:
+    s = json.load(f)
+s[\"statusLine\"] = {\"type\": \"command\", \"command\": \"python3 ~/.claude/statusline-export.py\"}
+with open(\"$HOME/.claude/settings.json\", \"w\") as f:
+    json.dump(s, f, indent=2, ensure_ascii=False)
+    f.write(\"\n\")
+print(\"✅ statusLine 已恢复\")
+"'
+```
+
+> 💡 建议在 `CLAUDE.md` 中备注不要移除 `settings.json` 中的 `statusLine` 配置，避免被 AI agent 覆盖。
+
+### 新会话开始时 Touch Bar 短暂空白？
+
+正常现象。新会话开始后 statusline hook 会触发一次，但此时尚未完成首次 API 调用，没有用量数据。导出脚本会保留上一会话的有效数据（不覆盖 stae.json），Touch Bar 继续显示旧数据直到新数据到达。如果旧数据存在但超过 30 分钟未更新，连线指示灯会变灰，一眼可知。
+
 ### state.json 没有生成？
 
 1. 确认 Mac Mini 上 Claude Code 的 statusLine 配置正确
@@ -163,14 +211,19 @@ bash ~/.claude/touchbar-fetch.sh
 
 ### MacBook Pro 看不到数据？
 
-1. 确认两台 Mac 登录了**同一个 Apple ID**，iCloud Drive 已开启
-2. iCloud 同步有 5-30 秒延迟，等待片刻再试
-3. 检查 `~/Library/Mobile Documents/com~apple~CloudDocs/claude-usage/` 目录是否存在
+1. 先用诊断命令检查 Mac Mini 端状态（见上文）
+2. 确认两台 Mac 登录了**同一个 Apple ID**，iCloud Drive 已开启（iCloud 仅在 SSH 不可用时作为兜底）
+3. SSH 直连是主要传输方式，两台机器需在同一局域网或在 Tailscale 等 VPN 内
 4. 确认 MTMR 已授权辅助功能权限
 
 ### Touch Bar 显示乱码？
 
-MTMR 只支持标准 16 色 ANSI 码。确保没有安装干扰配色的终端工具。
+MTMR 只支持标准 16 色 ANSI 码。如果安装了终端配色工具可能会干扰。
+如果进度条字符显示异常，尝试切换主题确认是否为字体问题。
+
+### 进度条在低用量时出现彩色断带？
+
+已在 hud/neon 主题中修复。空位统一暗灰色 `░`，仅填充块着色。如果仍有问题，确认主题文件已更新到最新版本。
 
 ---
 
